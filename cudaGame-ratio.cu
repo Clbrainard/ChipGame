@@ -1,6 +1,20 @@
 #include <iostream>
 #include <cuda_runtime.h>
 #include <curand_kernel.h>
+#include <vector>
+
+#include <fstream>
+#include <string>
+
+void writeToCSV(const std::string& filename, double val1, double val2, double val3) {
+    std::ofstream file(filename, std::ios::app);
+    if (file.is_open()) {
+        file << val1 << "," << val2 << "," << val3 << "\n";
+        file.close();
+    }
+}
+
+
 
 __global__ void simulation(int* results, double R, double dR) {
     int id = blockIdx.x * blockDim.x + threadIdx.x;
@@ -11,11 +25,21 @@ __global__ void simulation(int* results, double R, double dR) {
     curandState state;
     curand_init(1234 + id, 0, 0, &state);
 
-    int t = 0;
+    int t = 0; 
+    double offset = 0;
 
     while (chips > 0) {
-        int bet = (int)(chips * (R + (dR * t)));
-        if (bet == 0) bet = 1;
+        if (t != 0) {
+            offset =  R * pow(dR, t); 
+        }
+        
+        int bet = (int)(chips * (R + offset));
+        if (bet <= 0) {
+            bet = 1;
+        }
+        if (bet > chips) {
+            bet = chips;
+        }
 
         totalBets += bet;
 
@@ -25,7 +49,7 @@ __global__ void simulation(int* results, double R, double dR) {
         }
 
         float random = curand_uniform(&state);
-        if (random < 0.6f) {
+        if (random < 0.4f) {
             chips += bet;
         } else {
             chips -= bet;
@@ -65,12 +89,12 @@ int main() {
     int N;
     std::cin >> N;
     
-    std::vector<double> Rs = {0.0005,0.001,0.005,0.01,0.05,0.1};
-    std::vector<double> dRs = {0};
-
+    std::vector<double> Rs = {0.0005,0.001,0.005,0.01,0.05,0.1,1};
+    std::vector<double> dRs = {0.9, 0.95, 0.99, 1.0, 1.01, 1.05, 1.1};
+    
     for (int i = 0; i < Rs.size(); i++) {
         for (int k = 0; k < dRs.size(); k++) {
-            std::cout << winRate(dRs[k],Rs[i],N) << "\n"
+            writeToCSV("staticResults.csv",Rs[i],dRs[k],winRate(dRs[k],Rs[i],N));
         }
     }
 
